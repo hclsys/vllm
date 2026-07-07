@@ -189,3 +189,22 @@ def test_hunyuan_a13b_tool_parser_non_ascii():
     args = tool_calls[0].function.arguments
     assert "北京" in args
     assert "\\u" not in args
+
+
+def test_hunyuan_a13b_streaming_empty_args_before_real_args():
+    # tool 0 has empty args, tool 1 has real args. A global "{}" search used to
+    # blank out tool 1's arguments too (issue #47901).
+    mock_tokenizer = MagicMock()
+    tool_parser: ToolParser = ToolParserManager.get_tool_parser("hunyuan_a13b")(
+        mock_tokenizer
+    )
+    text = (
+        '<tool_calls>[{"name": "a", "arguments": {}}, '
+        '{"name": "b", "arguments": {"x": 42}}]</tool_calls>'
+    )
+    reconstructor = run_tool_extraction_streaming(
+        tool_parser, list(text), assert_one_tool_per_delta=False
+    )
+    args = [tc.function.arguments for tc in reconstructor.tool_calls]
+    assert json.loads(args[0]) == {}
+    assert json.loads(args[1]) == {"x": 42}

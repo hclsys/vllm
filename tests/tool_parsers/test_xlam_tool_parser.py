@@ -555,3 +555,20 @@ def test_extract_tool_calls_non_ascii(xlam_tool_parser, xlam_tokenizer, streamin
 
     assert "北京" in args
     assert "\\u" not in args
+
+
+def test_streaming_empty_args_before_real_args(xlam_tool_parser, xlam_tokenizer):
+    # tool 0 has empty args, tool 1 has real args. A global "{}" search used to
+    # blank out tool 1's arguments too (issue #47901).
+    model_output = """[{"name": "a", "arguments": {}}, {"name": "b", "arguments": {"x": 42}}]"""  # noqa: E501
+
+    got: dict[int, str] = {}
+    for delta in stream_delta_message_generator(
+        xlam_tool_parser, xlam_tokenizer, model_output
+    ):
+        for tc in delta.tool_calls or []:
+            if tc.function and tc.function.arguments:
+                got[tc.index] = got.get(tc.index, "") + tc.function.arguments
+
+    assert json.loads(got[0]) == {}
+    assert json.loads(got[1]) == {"x": 42}

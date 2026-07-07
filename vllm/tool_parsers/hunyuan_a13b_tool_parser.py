@@ -313,8 +313,15 @@ class HunyuanA13BToolParser(ToolParser):
         self, current_text: str, current_idx: int, tool_count: int
     ):
         if current_idx >= 0 and current_idx < tool_count:
-            empty_args_match = self.tool_empty_arg_reg.search(current_text)
-            if empty_args_match and empty_args_match.start() > 0:
+            # Only treat the CURRENT tool as empty-args. A search for any "{}"
+            # also matches an *earlier* empty tool, which then wrongly blanks
+            # out this tool's real arguments (issue #47901).
+            current_args_empty = (
+                current_idx < len(self.prev_tool_call_arr)
+                and isinstance(self.prev_tool_call_arr[current_idx], dict)
+                and self.prev_tool_call_arr[current_idx].get("arguments") == {}
+            )
+            if current_args_empty:
                 for i in range(tool_count):
                     if i == current_idx:
                         if not self.streaming_state["sent_tools"][current_idx][
